@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <title>Reading & Location Journal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1e3c72" />
+
+  <!-- Manifesto PWA -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Ícone para iOS (usar o de 192x192 ou outro que criares) -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      max-width: 700px;
+      margin-inline: auto;
+      background: #f5f5f5;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    .card {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    label { display: block; margin-top: 8px; font-size: 0.9rem; }
+    input, textarea {
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 0.95rem;
+      margin-top: 2px;
+      box-sizing: border-box;
+    }
+    textarea { min-height: 70px; }
+    button {
+      margin-top: 10px;
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+    .primary {
+      background: #1976d2;
+      color: white;
+    }
+    .secondary {
+      background: #e0e0e0;
+    }
+    .entry-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .entry-meta {
+      font-size: 0.8rem;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .entry-notes {
+      font-size: 0.9rem;
+    }
+    #newEntryCard {
+      margin-top: 16px;
+      margin-bottom: 20px;
+    }
+    .entry-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #imagePreviewContainer img {
+      max-width: 100%;
+      border-radius: 12px;
+      display: block;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Reading & Location Journal</h1>
+  <p style="font-size:0.9rem;color:#555;">
+    Regista onde leste, o que leste e o que sentiste ✍️
+  </p>
+
+  <div id="newEntryCard" class="card">
+    <h2 style="font-size:1.1rem;margin-top:0;">Nova leitura</h2>
+    <form id="entryForm">
+      <label>
+        Livro*
+        <input type="text" id="bookTitle" required />
+      </label>
+      <label>
+        Local (ex.: Seteais, Jardim dos Namorados)
+        <input type="text" id="placeName" />
+      </label>
+      <label>
+        Data
+        <input type="date" id="date" />
+      </label>
+      <label>
+        Notas / reflexão
+        <textarea id="notes"></textarea>
+      </label>
+      <button type="submit" class="primary">Guardar leitura</button>
+    </form>
+  </div>
+
+  <h2 style="font-size:1.1rem;">Entradas guardadas</h2>
+  <div id="entriesContainer"></div>
+
+  <h2 style="font-size:1.1rem;margin-top:20px;">Pré-visualização de imagem p/ Story</h2>
+  <div id="imagePreviewContainer" class="card" style="display:none;">
+    <p style="font-size:0.9rem;color:#555;margin-top:0;">
+      Mantém o dedo em cima da imagem para guardar e depois usa-a num Story do Instagram.
+    </p>
+    <img id="storyImage" alt="Pré-visualização da imagem de Story" />
+  </div>
+
+  <script>
+    const STORAGE_KEY = "reading_journal_entries_v1";
+
+    function loadEntries() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        console.error("Erro a ler do localStorage", e);
+        return [];
+      }
+    }
+
+    function saveEntries(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return "";
+      const d = new Date(dateString);
+      if (isNaN(d)) return dateString;
+      return d.toLocaleDateString("pt-PT");
+    }
+
+    // Texto para partilha / legenda
+    function buildShareText(entry) {
+      const lines = [];
+      lines.push(`📚 Leitura: ${entry.bookTitle}`);
+      if (entry.placeName) lines.push(`📍 Local: ${entry.placeName}`);
+      if (entry.date) lines.push(`🗓️ Data: ${formatDate(entry.date)}`);
+      if (entry.notes) {
+        lines.push("");
+        lines.push("📝 Notas:");
+        lines.push(entry.notes);
+      }
+      lines.push("");
+      lines.push("#readingjournal #bookstagram #EntreSonhos #Sintra");
+      return lines.join("\n");
+    }
+
+    async function shareEntry(id) {
+      const entries = loadEntries();
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+
+      const text = buildShareText(entry);
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ text });
+        } catch (e) {
+          if (e.name !== "AbortError") {
+            console.error("Erro ao partilhar", e);
+            alert("Não foi possível partilhar. Vou tentar copiar o texto.");
+            copyToClipboardFallback(text);
+          }
+        }
+      } else {
+        copyToClipboardFallback(text);
+      }
+    }
+
+    function copyToClipboardFallback(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(() => {
+            alert("Texto copiado. Cola na legenda do Instagram ou noutra app.");
+          })
+          .catch(err => {
+            console.error("Erro ao copiar para clipboard", err);
+            prompt("Copia manualmente o texto:", text);
+          });
+      } else {
+        prompt("Copia manualmente o texto:", text);
+      }
+    }
+
+    // Gera imagem para Story
+    function generateImageForEntry(id) {
+      const entries = loadEntries();
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 1920;
+      const ctx = canvas.getContext("2d");
+
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, "#1e3c72");
+      gradient.addColorStop(1, "#2a5298");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      const paddingBox = 80;
+      ctx.fillRect(
+        paddingBox,
+        paddingBox,
+        canvas.width - paddingBox * 2,
+        canvas.height - paddingBox * 2
+      );
+
+      function drawWrappedText(text, x, y, maxWidth, lineHeight, font) {
+        ctx.font = font;
+        ctx.fillStyle = "#ffffff";
+        const words = text.split(" ");
+        let line = "";
+
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + " ";
+          const metrics = ctx.measureText(testLine);
+          const testWidth = metrics.width;
+          if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, y);
+            line = words[n] + " ";
+            y += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        if (line) {
+          ctx.fillText(line, x, y);
+        }
+        return y;
+      }
+
+      const boxX = paddingBox + 40;
+      let currentY = paddingBox + 140;
+      const maxTextWidth = canvas.width - (paddingBox + 40) * 2;
+
+      ctx.font = "bold 56px system-ui";
+      ctx.fillStyle = "#ffffff";
+      const bookTitle = entry.bookTitle || "Leitura";
+      const bookLines = bookTitle.split("\n");
+      bookLines.forEach(line => {
+        const metrics = ctx.measureText(line);
+        const lineWidth = metrics.width;
+        const x = canvas.width / 2 - lineWidth / 2;
+        ctx.fillText(line, x, currentY);
+        currentY += 64;
+      });
+
+      currentY += 30;
+
+      ctx.font = "28px system-ui";
+      ctx.fillStyle = "#e0e0e0";
+      const metaParts = [];
+      if (entry.placeName) metaParts.push(entry.placeName);
+      if (entry.date) metaParts.push(formatDate(entry.date));
+      const metaText = metaParts.join(" • ");
+      if (metaText) {
+        const metaWidth = ctx.measureText(metaText).width;
+        const x = canvas.width / 2 - metaWidth / 2;
+        ctx.fillText(metaText, x, currentY);
+        currentY += 50;
+      }
+
+      currentY += 30;
+
+      if (entry.notes) {
+        currentY = drawWrappedText(
+          entry.notes,
+          boxX,
+          currentY,
+          maxTextWidth,
+          40,
+          "30px system-ui"
+        );
+      }
+
+      currentY += 60;
+
+      ctx.font = "26px system-ui";
+      ctx.fillStyle = "#ffffff";
+      const footer = "#readingjournal #EntreSonhos #Sintra";
+      const footerWidth = ctx.measureText(footer).width;
+      const footerX = canvas.width / 2 - footerWidth / 2;
+      ctx.fillText(footer, footerX, canvas.height - paddingBox - 40);
+
+      const dataUrl = canvas.toDataURL("image/png");
+
+      const previewContainer = document.getElementById("imagePreviewContainer");
+      const imgElement = document.getElementById("storyImage");
+      imgElement.src = dataUrl;
+      previewContainer.style.display = "block";
+    }
+
+    function renderEntries() {
+      const container = document.getElementById("entriesContainer");
+      const entries = loadEntries().sort((a, b) => b.createdAt - a.createdAt);
+
+      container.innerHTML = "";
+      if (entries.length === 0) {
+        container.innerHTML = "<p style='color:#777;font-size:0.9rem;'>Ainda não tens entradas. Regista a tua primeira leitura!</p>";
+        return;
+      }
+
+      for (const entry of entries) {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const dateText = entry.date ? formatDate(entry.date) : "";
+        const createdText = new Date(entry.createdAt).toLocaleString("pt-PT");
+
+        card.innerHTML = `
+          <div class="entry-title">${entry.bookTitle}</div>
+          <div class="entry-meta">
+            ${entry.placeName ? entry.placeName + " · " : ""} 
+            ${dateText || "Data não indicada"}
+          </div>
+          <div class="entry-notes">
+            ${
+              entry.notes
+                ? entry.notes.replace(/\\n/g, "<br>")
+                : "<span style='color:#777;font-size:0.85rem;'>Sem notas.</span>"
+            }
+          </div>
+          <div class="entry-meta" style="margin-top:6px;">
+            Registado em: ${createdText}
+          </div>
+          <div class="entry-actions">
+            <button class="secondary" onclick="shareEntry(${entry.id})">
+              Partilhar texto
+            </button>
+            <button class="secondary" onclick="generateImageForEntry(${entry.id})">
+              Imagem p/ Story
+            </button>
+          </div>
+        `;
+
+        container.appendChild(card);
+      }
+    }
+
+    document.getElementById("entryForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const bookTitle = document.getElementById("bookTitle").value.trim();
+      const placeName = document.getElementById("placeName").value.trim();
+      const date = document.getElementById("date").value;
+      const notes = document.getElementById("notes").value.trim();
+
+      if (!bookTitle) {
+        alert("O campo 'Livro' é obrigatório.");
+        return;
+      }
+
+      const entries = loadEntries();
+      const newEntry = {
+        id: Date.now(),
+        bookTitle,
+        placeName,
+        date,
+        notes,
+        createdAt: Date.now()
+      };
+
+      entries.push(newEntry);
+      saveEntries(entries);
+
+      document.getElementById("entryForm").reset();
+      setTodayDate();
+
+      renderEntries();
+    });
+
+    function setTodayDate() {
+      const dateInput = document.getElementById("date");
+      if (!dateInput.value) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+      }
+    }
+
+    setTodayDate();
+    renderEntries();
+  </script>
+</body>
+</html>
