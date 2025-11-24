@@ -9,7 +9,7 @@
   <!-- Manifesto PWA -->
   <link rel="manifest" href="manifest.json" />
 
-  <!-- Ícone para iOS (usar o de 192x192 ou outro que criares) -->
+  <!-- Ícone para iOS -->
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
   <style>
@@ -118,10 +118,13 @@
   <h2 style="font-size:1.1rem;margin-top:20px;">Pré-visualização de imagem p/ Story</h2>
   <div id="imagePreviewContainer" class="card" style="display:none;">
     <p style="font-size:0.9rem;color:#555;margin-top:0;">
-      Mantém o dedo em cima da imagem para guardar e depois usa-a num Story do Instagram.
+      Mantém o dedo em cima da imagem para guardar e depois usa-a num Story ou publicação.
     </p>
     <img id="storyImage" alt="Pré-visualização da imagem de Story" />
   </div>
+
+  <!-- Input escondido para escolher foto -->
+  <input type="file" id="photoInput" accept="image/*" style="display:none" />
 
   <script>
     const STORAGE_KEY = "reading_journal_entries_v1";
@@ -201,7 +204,7 @@
       }
     }
 
-    // Gera imagem para Story
+    // Versão antiga: imagem abstrata (continua disponível se quiseres)
     function generateImageForEntry(id) {
       const entries = loadEntries();
       const entry = entries.find(e => e.id === id);
@@ -305,7 +308,147 @@
       ctx.fillText(footer, footerX, canvas.height - paddingBox - 40);
 
       const dataUrl = canvas.toDataURL("image/png");
+      showPreviewImage(dataUrl);
+    }
 
+    // NOVO: gerar imagem com foto escolhida
+    function generateImageWithPhotoForEntry(id) {
+      const entries = loadEntries();
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+
+      const photoInput = document.getElementById("photoInput");
+
+      photoInput.onchange = function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          const img = new Image();
+          img.onload = function () {
+            drawImageWithPhoto(entry, img);
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+
+        // limpar para permitir escolher a mesma foto outra vez se quisermos
+        photoInput.value = "";
+      };
+
+      photoInput.click();
+    }
+
+    function drawImageWithPhoto(entry, photoImg) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 1920;
+      const ctx = canvas.getContext("2d");
+
+      // desenhar foto como fundo (tipo "cover")
+      const imgRatio = photoImg.width / photoImg.height;
+      const canvasRatio = canvas.width / canvas.height;
+
+      let drawWidth, drawHeight, offsetX, offsetY;
+      if (imgRatio > canvasRatio) {
+        // imagem é mais "deitada": ajusta pela altura
+        drawHeight = canvas.height;
+        drawWidth = photoImg.width * (canvas.height / photoImg.height);
+        offsetX = (canvas.width - drawWidth) / 2;
+        offsetY = 0;
+      } else {
+        // imagem é mais "alta": ajusta pela largura
+        drawWidth = canvas.width;
+        drawHeight = photoImg.height * (canvas.width / photoImg.width);
+        offsetX = 0;
+        offsetY = (canvas.height - drawHeight) / 2;
+      }
+
+      ctx.drawImage(photoImg, offsetX, offsetY, drawWidth, drawHeight);
+
+      // Caixa escura em baixo para texto
+      const overlayHeight = canvas.height * 0.45;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(0, canvas.height - overlayHeight, canvas.width, overlayHeight);
+
+      function drawWrappedText(text, x, y, maxWidth, lineHeight, font, color) {
+        ctx.font = font;
+        ctx.fillStyle = color;
+        const words = text.split(" ");
+        let line = "";
+
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + " ";
+          const metrics = ctx.measureText(testLine);
+          const testWidth = metrics.width;
+          if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, y);
+            line = words[n] + " ";
+            y += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        if (line) {
+          ctx.fillText(line, x, y);
+        }
+        return y;
+      }
+
+      const padding = 80;
+      let currentY = canvas.height - overlayHeight + padding;
+      const maxTextWidth = canvas.width - padding * 2;
+
+      // Título do livro
+      ctx.font = "bold 54px system-ui";
+      ctx.fillStyle = "#ffffff";
+      const bookTitle = entry.bookTitle || "Leitura";
+      const bookLines = bookTitle.split("\n");
+      bookLines.forEach(line => {
+        currentY = drawWrappedText(line, padding, currentY, maxTextWidth, 60, "bold 54px system-ui", "#ffffff") + 10;
+      });
+
+      // Local e data
+      ctx.font = "26px system-ui";
+      ctx.fillStyle = "#e0e0e0";
+      const metaParts = [];
+      if (entry.placeName) metaParts.push(entry.placeName);
+      if (entry.date) metaParts.push(formatDate(entry.date));
+      const metaText = metaParts.join(" • ");
+      if (metaText) {
+        currentY += 10;
+        currentY = drawWrappedText(metaText, padding, currentY, maxTextWidth, 34, "26px system-ui", "#e0e0e0");
+      }
+
+      // Notas (se couberem)
+      if (entry.notes) {
+        currentY += 20;
+        currentY = drawWrappedText(
+          entry.notes,
+          padding,
+          currentY,
+          maxTextWidth,
+          34,
+          "26px system-ui",
+          "#ffffff"
+        );
+      }
+
+      // Hashtags em baixo à direita
+      ctx.font = "24px system-ui";
+      ctx.fillStyle = "#ffffff";
+      const footer = "#readingjournal #EntreSonhos #Sintra";
+      const footerWidth = ctx.measureText(footer).width;
+      const footerX = canvas.width - padding - footerWidth;
+      const footerY = canvas.height - padding;
+      ctx.fillText(footer, footerX, footerY);
+
+      const dataUrl = canvas.toDataURL("image/png");
+      showPreviewImage(dataUrl);
+    }
+
+    function showPreviewImage(dataUrl) {
       const previewContainer = document.getElementById("imagePreviewContainer");
       const imgElement = document.getElementById("storyImage");
       imgElement.src = dataUrl;
@@ -350,7 +493,10 @@
               Partilhar texto
             </button>
             <button class="secondary" onclick="generateImageForEntry(${entry.id})">
-              Imagem p/ Story
+              Imagem abstrata
+            </button>
+            <button class="secondary" onclick="generateImageWithPhotoForEntry(${entry.id})">
+              Imagem c/ foto
             </button>
           </div>
         `;
