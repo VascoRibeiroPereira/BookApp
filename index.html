@@ -127,6 +127,9 @@
       Mantém o dedo em cima da imagem para guardar e depois usa-a num Story ou publicação.
     </p>
     <img id="storyImage" alt="Pré-visualização da imagem de Story" />
+    <button class="secondary" type="button" onclick="shareLastImage()">
+      Partilhar imagem
+    </button>
   </div>
 
   <!-- Input escondido para escolher foto -->
@@ -135,8 +138,8 @@
   <script>
     "use strict";
 
-    // NOVA CHAVE, para evitar lixo antigo
     const STORAGE_KEY = "reading_journal_entries_v2";
+    let lastImageDataUrl = null;
 
     function setStatus(msg) {
       const el = document.getElementById("statusMsg");
@@ -161,7 +164,7 @@
     function saveEntries(entries) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-        setStatus(""); // limpar msg de erro se tudo ok
+        setStatus("");
       } catch (e) {
         console.error("Erro ao guardar no localStorage", e);
         setStatus("⚠️ Erro a guardar os dados (localStorage). Verifica se o browser permite armazenamento.");
@@ -229,7 +232,7 @@
       }
     }
 
-    // Imagem abstrata (com mais espaço entre blocos)
+    // Imagem abstrata
     function generateImageForEntry(id) {
       const entries = loadEntries();
       const entry = entries.find(e => e.id === id);
@@ -339,7 +342,7 @@
       showPreviewImage(dataUrl);
     }
 
-    // Gera imagem com foto escolhida (com mais espaço entre secções)
+    // Imagem com foto
     function generateImageWithPhotoForEntry(id) {
       const entries = loadEntries();
       const entry = entries.find(e => e.id === id);
@@ -486,10 +489,44 @@
     }
 
     function showPreviewImage(dataUrl) {
+      lastImageDataUrl = dataUrl; // guardar última imagem
+
       const previewContainer = document.getElementById("imagePreviewContainer");
       const imgElement = document.getElementById("storyImage");
       imgElement.src = dataUrl;
       previewContainer.style.display = "block";
+    }
+
+    async function shareLastImage() {
+      if (!lastImageDataUrl) {
+        alert("Gera primeiro uma imagem (abstrata ou com foto).");
+        return;
+      }
+
+      if (!navigator.share || !navigator.canShare) {
+        alert("O teu navegador não suporta partilha direta de ficheiros.\nGuarda a imagem e partilha-a manualmente no Instagram/X/Facebook.");
+        return;
+      }
+
+      try {
+        const response = await fetch(lastImageDataUrl);
+        const blob = await response.blob();
+        const file = new File([blob], "reading-journal.png", { type: "image/png" });
+
+        if (!navigator.canShare({ files: [file] })) {
+          alert("Não é possível partilhar esta imagem diretamente neste dispositivo.\nGuarda a imagem e partilha-a manualmente.");
+          return;
+        }
+
+        await navigator.share({
+          files: [file],
+          text: "" // podes pôr uma frase breve aqui se quiseres
+        });
+
+      } catch (e) {
+        console.error("Erro ao partilhar imagem", e);
+        alert("Não foi possível partilhar a imagem.\nPodes guardá-la e partilhar manualmente.");
+      }
     }
 
     function renderEntries() {
