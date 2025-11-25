@@ -53,6 +53,10 @@
     .secondary {
       background: #e0e0e0;
     }
+    .danger {
+      background: #e53935;
+      color: white;
+    }
     .entry-title {
       font-weight: 600;
       margin-bottom: 2px;
@@ -67,7 +71,7 @@
     }
     #newEntryCard {
       margin-top: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
     .entry-actions {
       margin-top: 8px;
@@ -86,6 +90,18 @@
       color: #b00020;
       margin-top: 6px;
     }
+    #notesCounter {
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 4px;
+      text-align: right;
+    }
+    /* Caixa scrollável para muitas entradas */
+    #entriesWrapper {
+      max-height: 50vh;
+      overflow-y: auto;
+      margin-bottom: 8px;
+    }
   </style>
 </head>
 <body>
@@ -94,6 +110,7 @@
     Regista onde leste, o que leste e o que sentiste ✍️
   </p>
 
+  <!-- Nova leitura -->
   <div id="newEntryCard" class="card">
     <h2 style="font-size:1.1rem;margin-top:0;">Nova leitura</h2>
     <form id="entryForm">
@@ -113,15 +130,14 @@
         Notas / reflexão
         <textarea id="notes"></textarea>
       </label>
+      <div id="notesCounter">0 / 1148</div>
       <button type="submit" class="primary">Guardar leitura</button>
       <div id="statusMsg"></div>
     </form>
   </div>
 
-  <h2 style="font-size:1.1rem;">Entradas guardadas</h2>
-  <div id="entriesContainer"></div>
-
-  <h2 style="font-size:1.1rem;margin-top:20px;">Pré-visualização de imagem p/ Story</h2>
+  <!-- Pré-visualização de imagem (AGORA FICA ANTES DAS ENTRADAS) -->
+  <h2 style="font-size:1.1rem;margin-top:12px;">Pré-visualização de imagem p/ Story</h2>
   <div id="imagePreviewContainer" class="card" style="display:none;">
     <p style="font-size:0.9rem;color:#555;margin-top:0;">
       Mantém o dedo em cima da imagem para guardar e depois usa-a num Story ou publicação.
@@ -130,6 +146,12 @@
     <button class="secondary" type="button" onclick="shareLastImage()">
       Partilhar imagem
     </button>
+  </div>
+
+  <!-- Entradas guardadas -->
+  <h2 style="font-size:1.1rem;margin-top:16px;">Entradas guardadas</h2>
+  <div id="entriesWrapper">
+    <div id="entriesContainer"></div>
   </div>
 
   <!-- Input escondido para escolher foto -->
@@ -191,7 +213,7 @@
         lines.push(entry.notes);
       }
       lines.push("");
-      lines.push("ig: @blog_entre_sonhos");
+      lines.push("ig: blog_entre_sonhos");
       return lines.join("\n");
     }
 
@@ -333,7 +355,7 @@
 
       ctx.font = "26px system-ui";
       ctx.fillStyle = "#ffffff";
-      const footer = "ig: @blog_entre_sonhos";
+      const footer = "ig: blog_entre_sonhos";
       const footerWidth = ctx.measureText(footer).width;
       const footerX = canvas.width / 2 - footerWidth / 2;
       ctx.fillText(footer, footerX, canvas.height - paddingBox - 40);
@@ -478,7 +500,7 @@
       // Hashtags
       ctx.font = "24px system-ui";
       ctx.fillStyle = "#ffffff";
-      const footer = "ig: @blog_entre_sonhos";
+      const footer = "ig: blog_entre_sonhos";
       const footerWidth = ctx.measureText(footer).width;
       const footerX = canvas.width - padding - footerWidth;
       const footerY = canvas.height - padding;
@@ -489,12 +511,17 @@
     }
 
     function showPreviewImage(dataUrl) {
-      lastImageDataUrl = dataUrl; // guardar última imagem
+      lastImageDataUrl = dataUrl;
 
       const previewContainer = document.getElementById("imagePreviewContainer");
       const imgElement = document.getElementById("storyImage");
       imgElement.src = dataUrl;
       previewContainer.style.display = "block";
+
+      // Scroll automático até à pré-visualização
+      if (previewContainer.scrollIntoView) {
+        previewContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     }
 
     async function shareLastImage() {
@@ -520,13 +547,21 @@
 
         await navigator.share({
           files: [file],
-          text: "" // podes pôr uma frase breve aqui se quiseres
+          text: ""
         });
 
       } catch (e) {
         console.error("Erro ao partilhar imagem", e);
         alert("Não foi possível partilhar a imagem.\nPodes guardá-la e partilhar manualmente.");
       }
+    }
+
+    function deleteEntry(id) {
+      if (!confirm("Queres mesmo eliminar esta entrada?")) return;
+      const entries = loadEntries();
+      const filtered = entries.filter(e => e.id !== id);
+      saveEntries(filtered);
+      renderEntries();
     }
 
     function renderEntries() {
@@ -572,44 +607,15 @@
             <button class="secondary" onclick="generateImageWithPhotoForEntry(${entry.id})">
               Imagem c/ foto
             </button>
+            <button class="danger" onclick="deleteEntry(${entry.id})">
+              Eliminar
+            </button>
           </div>
         `;
 
         container.appendChild(card);
       }
     }
-
-    document.getElementById("entryForm").addEventListener("submit", function (e) {
-      e.preventDefault();
-
-      const bookTitle = document.getElementById("bookTitle").value.trim();
-      const placeName = document.getElementById("placeName").value.trim();
-      const date = document.getElementById("date").value;
-      const notes = document.getElementById("notes").value.trim();
-
-      if (!bookTitle) {
-        alert("O campo 'Livro' é obrigatório.");
-        return;
-      }
-
-      const entries = loadEntries();
-      const newEntry = {
-        id: Date.now(),
-        bookTitle,
-        placeName,
-        date,
-        notes,
-        createdAt: Date.now()
-      };
-
-      entries.push(newEntry);
-      saveEntries(entries);
-
-      document.getElementById("entryForm").reset();
-      setTodayDate();
-
-      renderEntries();
-    });
 
     function setTodayDate() {
       const dateInput = document.getElementById("date");
@@ -622,7 +628,22 @@
       }
     }
 
+    function initNotesCounter() {
+      const notesEl = document.getElementById("notes");
+      const counterEl = document.getElementById("notesCounter");
+      if (!notesEl || !counterEl) return;
+      const NOTES_LIMIT = 1148;
+      notesEl.setAttribute("maxlength", NOTES_LIMIT);
+      const update = () => {
+        const len = notesEl.value.length;
+        counterEl.textContent = `${len} / ${NOTES_LIMIT}`;
+      };
+      notesEl.addEventListener("input", update);
+      update();
+    }
+
     // inicialização
+    initNotesCounter();
     setTodayDate();
     renderEntries();
   </script>
