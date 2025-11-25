@@ -204,7 +204,7 @@
       }
     }
 
-    // Versão antiga: imagem abstrata (continua disponível se quiseres)
+    // Imagem abstrata (mais espaço entre blocos)
     function generateImageForEntry(id) {
       const entries = loadEntries();
       const entry = entries.find(e => e.id === id);
@@ -255,9 +255,10 @@
       }
 
       const boxX = paddingBox + 40;
-      let currentY = paddingBox + 140;
+      let currentY = paddingBox + 160;
       const maxTextWidth = canvas.width - (paddingBox + 40) * 2;
 
+      // Título do livro – mais espaço entre linhas
       ctx.font = "bold 56px system-ui";
       ctx.fillStyle = "#ffffff";
       const bookTitle = entry.bookTitle || "Leitura";
@@ -267,11 +268,12 @@
         const lineWidth = metrics.width;
         const x = canvas.width / 2 - lineWidth / 2;
         ctx.fillText(line, x, currentY);
-        currentY += 64;
+        currentY += 72; // mais espaçado
       });
 
-      currentY += 30;
+      currentY += 40;
 
+      // Local e data – mais afastados do título
       ctx.font = "28px system-ui";
       ctx.fillStyle = "#e0e0e0";
       const metaParts = [];
@@ -282,23 +284,24 @@
         const metaWidth = ctx.measureText(metaText).width;
         const x = canvas.width / 2 - metaWidth / 2;
         ctx.fillText(metaText, x, currentY);
-        currentY += 50;
+        currentY += 60; // + espaço
       }
 
-      currentY += 30;
+      currentY += 40;
 
+      // Notas – line height maior
       if (entry.notes) {
         currentY = drawWrappedText(
           entry.notes,
           boxX,
           currentY,
           maxTextWidth,
-          40,
+          46,             // antes 40
           "30px system-ui"
         );
       }
 
-      currentY += 60;
+      currentY += 80;
 
       ctx.font = "26px system-ui";
       ctx.fillStyle = "#ffffff";
@@ -311,7 +314,7 @@
       showPreviewImage(dataUrl);
     }
 
-    // NOVO: gerar imagem com foto escolhida
+    // NOVO: gerar imagem com foto escolhida (mais espaçamento também)
     function generateImageWithPhotoForEntry(id) {
       const entries = loadEntries();
       const entry = entries.find(e => e.id === id);
@@ -333,7 +336,6 @@
         };
         reader.readAsDataURL(file);
 
-        // limpar para permitir escolher a mesma foto outra vez se quisermos
         photoInput.value = "";
       };
 
@@ -346,19 +348,17 @@
       canvas.height = 1920;
       const ctx = canvas.getContext("2d");
 
-      // desenhar foto como fundo (tipo "cover")
+      // Foto como fundo (cover)
       const imgRatio = photoImg.width / photoImg.height;
       const canvasRatio = canvas.width / canvas.height;
 
       let drawWidth, drawHeight, offsetX, offsetY;
       if (imgRatio > canvasRatio) {
-        // imagem é mais "deitada": ajusta pela altura
         drawHeight = canvas.height;
         drawWidth = photoImg.width * (canvas.height / photoImg.height);
         offsetX = (canvas.width - drawWidth) / 2;
         offsetY = 0;
       } else {
-        // imagem é mais "alta": ajusta pela largura
         drawWidth = canvas.width;
         drawHeight = photoImg.height * (canvas.width / photoImg.width);
         offsetX = 0;
@@ -367,8 +367,8 @@
 
       ctx.drawImage(photoImg, offsetX, offsetY, drawWidth, drawHeight);
 
-      // Caixa escura em baixo para texto
-      const overlayHeight = canvas.height * 0.45;
+      // Caixa escura maior para texto
+      const overlayHeight = canvas.height * 0.5;  // antes 0.45
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
       ctx.fillRect(0, canvas.height - overlayHeight, canvas.width, overlayHeight);
 
@@ -396,46 +396,58 @@
         return y;
       }
 
-      const padding = 80;
+      const padding = 100; // mais margem interna
       let currentY = canvas.height - overlayHeight + padding;
       const maxTextWidth = canvas.width - padding * 2;
 
       // Título do livro
-      ctx.font = "bold 54px system-ui";
-      ctx.fillStyle = "#ffffff";
       const bookTitle = entry.bookTitle || "Leitura";
       const bookLines = bookTitle.split("\n");
       bookLines.forEach(line => {
-        currentY = drawWrappedText(line, padding, currentY, maxTextWidth, 60, "bold 54px system-ui", "#ffffff") + 10;
+        currentY = drawWrappedText(
+          line,
+          padding,
+          currentY,
+          maxTextWidth,
+          70,                       // antes 60
+          "bold 54px system-ui",
+          "#ffffff"
+        ) + 12;
       });
 
       // Local e data
-      ctx.font = "26px system-ui";
-      ctx.fillStyle = "#e0e0e0";
       const metaParts = [];
       if (entry.placeName) metaParts.push(entry.placeName);
       if (entry.date) metaParts.push(formatDate(entry.date));
       const metaText = metaParts.join(" • ");
       if (metaText) {
-        currentY += 10;
-        currentY = drawWrappedText(metaText, padding, currentY, maxTextWidth, 34, "26px system-ui", "#e0e0e0");
+        currentY += 18;
+        currentY = drawWrappedText(
+          metaText,
+          padding,
+          currentY,
+          maxTextWidth,
+          40,                      // antes 34
+          "26px system-ui",
+          "#e0e0e0"
+        );
       }
 
-      // Notas (se couberem)
+      // Notas
       if (entry.notes) {
-        currentY += 20;
+        currentY += 24;
         currentY = drawWrappedText(
           entry.notes,
           padding,
           currentY,
           maxTextWidth,
-          34,
+          40,                       // antes 34
           "26px system-ui",
           "#ffffff"
         );
       }
 
-      // Hashtags em baixo à direita
+      // Hashtags
       ctx.font = "24px system-ui";
       ctx.fillStyle = "#ffffff";
       const footer = "#readingjournal #EntreSonhos #Sintra";
@@ -481,7 +493,7 @@
           <div class="entry-notes">
             ${
               entry.notes
-                ? entry.notes.replace(/\\n/g, "<br>")
+                ? entry.notes.replace(/\n/g, "<br>")
                 : "<span style='color:#777;font-size:0.85rem;'>Sem notas.</span>"
             }
           </div>
