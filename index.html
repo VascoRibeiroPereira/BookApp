@@ -497,7 +497,7 @@
         );
       }
 
-      // Hashtags / rodapé
+      // Rodapé
       ctx.font = "24px system-ui";
       ctx.fillStyle = "#ffffff";
       const footer = "ig: blog_entre_sonhos";
@@ -641,6 +641,44 @@
       notesEl.addEventListener("input", update);
       update();
     }
+
+    // ⬇️ ESTE BLOCO TINHA FALTADO ANTES: SUBMIT DO FORMULÁRIO
+    document.getElementById("entryForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const bookTitle = document.getElementById("bookTitle").value.trim();
+      const placeName = document.getElementById("placeName").value.trim();
+      const date = document.getElementById("date").value;
+      const notes = document.getElementById("notes").value.trim();
+
+      if (!bookTitle) {
+        alert("O campo 'Livro' é obrigatório.");
+        return;
+      }
+
+      const entries = loadEntries();
+      const newEntry = {
+        id: Date.now(),
+        bookTitle,
+        placeName,
+        date,
+        notes,
+        createdAt: Date.now()
+      };
+
+      entries.push(newEntry);
+      saveEntries(entries);
+
+      // limpar formulário
+      document.getElementById("entryForm").reset();
+      setTodayDate();
+
+      // reset do contador de caracteres
+      const counterEl = document.getElementById("notesCounter");
+      if (counterEl) counterEl.textContent = "0 / 1148";
+
+      renderEntries();
+    });
 
     // inicialização
     initNotesCounter();
